@@ -39,18 +39,23 @@ def generate_datasets(
 
     Xs = {}
     ys = {}
+    coefs = {}
     for key in kwargs[iterator]:
         kwargs[iterator] = key
         if linear:
-            X, y = datasets.make_regression(random_state=random_state, **kwargs)
+            X, y, coef = datasets.make_regression(
+                random_state=random_state, coef=True, **kwargs
+            )
         else:
             if kwargs["n_features"] < 5:
                 kwargs["n_features"] = 5
             X, y = datasets.make_friedman1(random_state=random_state, **kwargs)
+            coef = None
         Xs[key] = X
         ys[key] = y
+        coefs[key] = coef
 
-    return Xs, ys
+    return Xs, ys, coefs
 
 
 def plot_3d_projection(iterator, Xs, ys):
