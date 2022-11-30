@@ -2,62 +2,24 @@ import time
 
 import numpy as np
 import torch
-from numpy.linalg import norm
 from torch.autograd.functional import hessian, jacobian
-from tqdm.notebook import tqdm
 
 
-def sim_lm(n_obs, m_betas, X=None, b=None, seed=None):
-    """Simulate a linear model as Xb = y.
+class LinearRegression(torch.nn.Module):
+    """Muliple linear regression as a perceptron.
 
     Parameters
     ----------
-    n_obs : int
-        Number of observatins (rows of X).
     m_beta : int
         Numbers of beta weights.
-    X : 2d array, optional, default: None
-        Features. Defaults to random normal.
-    b : 1d array, optional default: None
-        Beta weights. Default to random normal.
-    seed : int, optional, default: None
-        Random seed for reproducibility.
-
-    Returns
-    -------
-    X : 2d tensor
-        Features.
-    b : 1d tensor
-        Beta weights.
-    y : 1d tensor
-        Target.
     """
 
-    # Set seed
-    if seed is not None:
-        np.random.seed(seed)
+    def __init__(self, m_betas):
+        super(LinearRegression, self).__init__()
+        self.linear = torch.nn.Linear(m_betas, 1, bias=False)
 
-    # Initalize arrays
-    if X is None:
-        X = np.random.normal(size=(n_obs, m_betas))
-
-    if b is None:
-        b = np.random.normal(size=m_betas)
-
-    # Solve y that corresponds to b and X
-    y = np.dot(X, b).reshape(-1, 1)
-
-    # Torch's linear layers require f32 tensors
-    X = X.astype(np.float32)
-    b = b.astype(np.float32)
-    y = y.astype(np.float32)
-
-    # Create tensors
-    X = torch.from_numpy(X)
-    b = torch.from_numpy(b)
-    y = torch.from_numpy(y)
-
-    return X, b, y
+    def forward(self, x):
+        return self.linear(x)
 
 
 def normal_eq_lr(X, y):
@@ -69,115 +31,6 @@ def normal_eq_lr(X, y):
     A = np.linalg.inv(np.matmul(np.transpose(X), X))
     B = np.matmul(np.transpose(X), y)
     return np.matmul(A, B)
-
-
-def newton_v1(X, y, max_iter=250):
-    """Simulate a linear model as Xb = y.
-
-    adapted from https://thatdatatho.com/newtons-method-bfgs-linear-regression/
-
-    Parameters
-    ----------
-    X : 2d array, default: None
-    Features.
-    y : 1d array, default: None
-    Observations.
-    error: float, optional, default: 10**-5
-    Stopping threshold for gradient norm. Defaults to 10**-5
-    max_iter: int, optional, default: 250
-    Maximum iterations for Newton's method. If solution has not been found, alg stops.
-
-    Returns
-    -------
-    (betas,MSEs)
-    betas : m x 1 tensor
-        Solution for least squares.
-    MSEs_to_npy : numpy array
-        MSE of each y_hat from the beta solution for each iteration. If there is no convergence on the kth step
-        The MSE of the kth step and any other step until the max_iterth step is nan.
-    """
-    # Convert from tensor to numpy array
-    X = np.array(X)
-
-    m = X.shape[1]
-    n = y.shape[0]
-
-    beta = np.zeros((m, 1))  # Start with a guess
-    A = -np.transpose(X)
-    B = y - np.matmul(X, beta)
-    gradient = np.matmul(A, B)  # 2 * t(X) %*% X %*% beta
-    hessian = np.matmul(np.transpose(X), X)  # 2 * t(X) %*% X
-
-    # Start Newton's method implementation here:
-    k = 0
-    grads = dict()
-    MSEs = dict()
-    while k < max_iter:  # stop if exceeds max iterations allowed
-        A = -np.transpose(X)
-        B = y - np.matmul(X, beta)
-        gradient = np.matmul(A, B)
-        try:
-            # If norm of gradient cannot be calculated because there's an infinite in there
-            grads[k] = norm(gradient)
-            # There is no convergence.
-            hessian = np.matmul(np.transpose(X), X)
-            search = np.matmul(np.linalg.inv(-hessian), gradient).numpy()
-            beta = beta + search  # beta - inv(-hessian) %*% gradient
-            y_hat = torch.tensor(
-                np.matmul(X, beta)
-            )  # calculate y_hat from beta solution for each iteration tf.convert_to_tensor(numpy_array)
-            loss_func = torch.nn.MSELoss()
-            MSEs[k] = loss_func(y_hat, y)
-            k += 1
-        except:
-            while k < max_iter:
-                MSEs[k] = np.nan  # Since it breaks on this kth step, make this MSE NA
-                k += 1  # Also do this for any step after this step.
-            MSEs_to_npy = np.array([z[1] for z in MSEs.items()])
-            res = (
-                torch.from_numpy(np.full((m, 1), np.nan)),
-                MSEs_to_npy,
-            )  # Return no solution and MSEs
-            # Not sure if this function should just return the beta solution in a previous epoch that worked...
-            return res
-            break
-    MSEs_to_npy = np.array([z[1] for z in MSEs.items()])
-    res = (torch.from_numpy(beta), MSEs_to_npy)
-    return res
-
-
-class LinearRegression(torch.nn.Module):
-    """Muliple linear regression as a perceptron.
-
-    Parameters
-    ----------
-    m_beta : int
-        Numbers of beta weights.
-    """
-
-    def __init__(self, m_betas):
-        super(LinearRegression, self).__init__()
-        self.linear = torch.nn.Linear(m_betas, 1, bias=False)
-
-    def forward(self, x):
-        return self.linear(x)
-
-
-class LinearRegression(torch.nn.Module):
-    """Muliple linear regression as a perceptron.
-
-    Parameters
-    ----------
-    m_beta : int
-        Numbers of beta weights.
-    """
-
-    def __init__(self, m_betas):
-        super(LinearRegression, self).__init__()
-        self.linear = torch.nn.Linear(m_betas, 1, bias=False)
-
-    def forward(self, x):
-        return self.linear(x)
 
 
 def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000, opt_kwargs=None):
