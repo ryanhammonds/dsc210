@@ -50,6 +50,3 @@ def test_train_model():
         assert len(loss_hist) == n_epochs
         assert loss_hist[0] > 0
         assert isinstance(elapsed, float)
-
-
-
