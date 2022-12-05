@@ -61,7 +61,7 @@ def generate_datasets(
 
 def sim_linear_model(n_obs, m_betas, X=None, b=None, seed=None):
     """Simulate a linear model as Xb = y.
-    
+
     Parameters
     ----------
     n_obs : int
@@ -74,7 +74,7 @@ def sim_linear_model(n_obs, m_betas, X=None, b=None, seed=None):
         Beta weights. Default to random normal.
     seed : int, optional, default: None
         Random seed for reproducibility.
-        
+
     Returns
     -------
     X : 2d tensor
@@ -84,21 +84,21 @@ def sim_linear_model(n_obs, m_betas, X=None, b=None, seed=None):
     y : 1d tensor
         Target.
     """
-    
+
     # Set seed
     if seed is not None:
         np.random.seed(seed)
-           
+
     # Initalize arrays
     if X is None:
         X = np.random.normal(size=(n_obs, m_betas))
-        
+
     if b is None:
         b = np.random.normal(size=m_betas)
 
     # Solve y that corresponds to b and X
     y = np.dot(X, b).reshape(-1, 1)
-    
+
     # Torch's linear layers require f32 tensors
     X = X.astype(np.float32)
     b = b.astype(np.float32)
@@ -108,7 +108,7 @@ def sim_linear_model(n_obs, m_betas, X=None, b=None, seed=None):
     X = torch.from_numpy(X)
     b = torch.from_numpy(b)
     y = torch.from_numpy(y)
-    
+
     return X, b, y
 
 
