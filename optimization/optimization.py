@@ -111,12 +111,19 @@ def train_model(X, y, method="sgd", model=None, lr=0.01, n_epochs=1000,
     # Initalize model and loss function
     if model is None:
         model = LinearRegression(len(X[0]))
-    elif model.__name__ == 'Friedman':
-        model = model(X)
+    elif model.__class__.__name__ == 'Friedman':
+        model = Friedman(X)
     else:
         model = model(len(X[0]))
-
-    betas = model.linear.weight.T.detach()
+    
+    if method != 'newton':
+        if model.__class__.__name__ == 'Friedman':
+            betas = torch.tensor([param.data.item() for param in model.parameters()]).T
+        else:
+            betas = model.linear.weight.T.detach()
+    else:
+        betas = torch.rand(X.size(1),1)
+            
     loss_func = torch.nn.MSELoss()
     loss_hist = np.zeros(n_epochs)
 
@@ -147,7 +154,7 @@ def train_model(X, y, method="sgd", model=None, lr=0.01, n_epochs=1000,
 
     # Required for Newton's method
     def compute_loss(betas):
-        if model.__name__ != 'Friedman':
+        if model.__class__.__name__ != 'Friedman':
             y_hat = torch.matmul(X, betas)
         else:
             betas = betas.squeeze()
@@ -203,10 +210,11 @@ def train_model(X, y, method="sgd", model=None, lr=0.01, n_epochs=1000,
     # Time
     end = time.time()
     elapsed = end - start
-
-    if method != "newton":
-        betas = model.linear.weight.detach()[0]
+    if method != 'newton':
+        if model.__class__.__name__ == 'Friedman':
+            betas = torch.tensor([param.data.item() for param in model.parameters()]).T
+        else:
+            betas = model.linear.weight.T.detach()
     else:
         betas = betas[:, 0]
-
     return betas, loss_hist, elapsed
