@@ -23,8 +23,22 @@ class LinearRegression(torch.nn.Module):
 
 
 def normal_eq_lr(X, y):
-    """
-    ### Normal Equation (Theoretical)
+    """Normal Equation (Theoretical)
+    
+    Parameters
+    ----------
+    X : 2d tensor
+        Features.
+    y : 1d tensor
+        Target.
+
+    Returns
+    -------
+    betas : 1d array
+        Estimated beta parameters.
+    
+    Notes
+    -----
     Closed Form Solution
     beta_hat = (X^T %*% X)^-1 %*% X %*% y
     """
@@ -33,7 +47,8 @@ def normal_eq_lr(X, y):
     return np.matmul(A, B)
 
 
-def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000, opt_kwargs=None):
+def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000,
+                seed=None, tol=None, tol_abs=None):
     """Train various gradient descent algorithms.
 
     Parameters
@@ -48,8 +63,12 @@ def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000, opt_kwargs=None):
         Learning rate (step size).
     n_epochs : int, optional, default: 1000
         Number of training iterations.
-    opt_kwargs : dict, optional, default: None
-        Optimizers kwargs to pass through to pytorch.
+    seed : int, optional, default: None
+        For repoducible random beta weights.
+    tol : float, optional, default: None
+        Early stopping tol.
+    tol_abs : float, optional, default: None
+        Absolute loss required for early stopping.
 
     Returns
     -------
@@ -61,20 +80,22 @@ def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000, opt_kwargs=None):
         Total time to train and run n_epochs.
     """
 
+    # Set reproducible seed
+    if seed is not None:
+        torch.manual_seed(seed)
+
     # Initalize model and loss function
     model = LinearRegression(len(X[0]))
+    betas = model.linear.weight.T.detach()
     loss_func = torch.nn.MSELoss()
     loss_hist = np.zeros(n_epochs)
 
     # Select optimizer
-    opt_kwargs = {} if opt_kwargs is None else opt_kwargs
     if method == "sgd":
-        optimizer = torch.optim.SGD(model.parameters(), lr=lr, **opt_kwargs)
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr)
     elif method == "lbfgs":
-        optimizer = torch.optim.LBFGS(model.parameters(), lr=lr, **opt_kwargs)
-    elif method == "newton":
-        betas = torch.rand(X.size(1), 1)
-    else:
+        optimizer = torch.optim.LBFGS(model.parameters(), lr=lr)
+    elif method != "newton":
         raise ValueError("Undefined method.")
 
     # Required for LBFGS
@@ -110,16 +131,19 @@ def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000, opt_kwargs=None):
         elif method == "lbfgs":
             loss = optimizer.step(closure)
             loss_hist[i] = loss
-        elif method == "newton":
-
+        elif method == "newton" and i == 0:
+            # The first iteration of pytorch methods logs initalize loss
+            #   This ensures all methods start logging at same loss
+            loss_hist[i] = compute_loss(betas)
+        elif method == 'newton':
+        
             # Compute gradient and Hessian
             grad = jacobian(compute_loss, betas)
 
-            if X.size()[1] == 1:  # check how many features
-                hess = torch.zeros(
-                    (1, 1)
-                )  # have to make a 1x1 tensor to be in unity with other cases when m > 1
-                # for some reason, hessian() output has no shape so we need to put it in the initialized 1x1 tensor
+            # Check how many features
+            if X.size()[1] == 1:  
+                # Have to make a 1x1 tensor to be in unity with other cases when m > 1
+                hess = torch.zeros((1, 1))  
                 hess[0] = hessian(compute_loss, betas).inverse().squeeze()
             else:
                 hess = hessian(compute_loss, betas).squeeze().inverse()
@@ -127,8 +151,22 @@ def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000, opt_kwargs=None):
             # Step
             betas = betas - torch.matmul(hess, grad)
 
-            loss_hist[i] = compute_loss(betas)
+        # Catch exploding gradients (n < m for Newton's)
+        if not np.isfinite(loss_hist[i]):
+            loss_hist[:] = np.nan
+            betas[:] = np.nan
+            elapsed = np.nan
+            return betas, loss_hist, elapsed
 
+        # Early stopping
+        if tol is not None:
+            prev_loss = np.nan if i == 0 else loss_hist[i-1]
+            abs_pass = abs(prev_loss-loss_hist[i]) <= tol
+            if (tol_abs is None and abs_pass or 
+                tol_abs is not None and loss_hist[i] < tol_abs and abs_pass):
+                loss_hist[i+1:] = np.nan
+                break
+    
     # Time
     end = time.time()
     elapsed = end - start
@@ -139,25 +177,3 @@ def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000, opt_kwargs=None):
         betas = betas[:, 0]
 
     return betas, loss_hist, elapsed
-
-
-def test_train_model():
-    """Test 1 beta and 10 beta cases."""
-
-    m = 100
-
-    times = {}
-
-    X, beta, y = sim_lm(m * 10, m, seed=m)
-
-    for method in ["sgd", "newton", "lbfgs"]:
-
-        beta_hat, loss_hist, elapsed = train_model(X, y, method=method)
-
-        times[method] = elapsed
-
-        # Check convergence
-        assert all(beta_hat.numpy().round(2) == beta.numpy().round(2))
-
-    if m == 100:
-        assert times["sgd"] < times["lbfgs"] < times["newton"]
