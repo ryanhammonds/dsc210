@@ -127,16 +127,13 @@ def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000,
         if method == "sgd":
             loss = closure()
             optimizer.step()
-            loss_hist[i] = loss
         elif method == "lbfgs":
             loss = optimizer.step(closure)
-            loss_hist[i] = loss
-        elif method == "newton" and i == 0:
-            # The first iteration of pytorch methods logs initalize loss
-            #   This ensures all methods start logging at same loss
-            loss_hist[i] = compute_loss(betas)
         elif method == 'newton':
-        
+            
+            # Compte loss
+            loss = compute_loss(betas)
+
             # Compute gradient and Hessian
             grad = jacobian(compute_loss, betas)
 
@@ -150,6 +147,8 @@ def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000,
 
             # Step
             betas = betas - torch.matmul(hess, grad)
+
+        loss_hist[i] = loss
 
         # Catch exploding gradients (n < m for Newton's)
         if not np.isfinite(loss_hist[i]):
