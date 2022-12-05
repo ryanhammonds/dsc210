@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 from sklearn import datasets
 from sklearn.decomposition import PCA
 
@@ -56,6 +57,59 @@ def generate_datasets(
         coefs[key] = coef
 
     return Xs, ys, coefs
+
+
+def sim_linear_model(n_obs, m_betas, X=None, b=None, seed=None):
+    """Simulate a linear model as Xb = y.
+    
+    Parameters
+    ----------
+    n_obs : int
+        Number of observatins (rows of X).
+    m_beta : int
+        Numbers of beta weights.
+    X : 2d array, optional, default: None
+        Features. Defaults to random normal.
+    b : 1d array, optional default: None
+        Beta weights. Default to random normal.
+    seed : int, optional, default: None
+        Random seed for reproducibility.
+        
+    Returns
+    -------
+    X : 2d tensor
+        Features.
+    b : 1d tensor
+        Beta weights.
+    y : 1d tensor
+        Target.
+    """
+    
+    # Set seed
+    if seed is not None:
+        np.random.seed(seed)
+           
+    # Initalize arrays
+    if X is None:
+        X = np.random.normal(size=(n_obs, m_betas))
+        
+    if b is None:
+        b = np.random.normal(size=m_betas)
+
+    # Solve y that corresponds to b and X
+    y = np.dot(X, b).reshape(-1, 1)
+    
+    # Torch's linear layers require f32 tensors
+    X = X.astype(np.float32)
+    b = b.astype(np.float32)
+    y = y.astype(np.float32)
+
+    # Create tensors
+    X = torch.from_numpy(X)
+    b = torch.from_numpy(b)
+    y = torch.from_numpy(y)
+    
+    return X, b, y
 
 
 def plot_3d_projection(iterator, Xs, ys):
