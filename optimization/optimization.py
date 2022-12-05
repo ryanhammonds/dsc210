@@ -147,7 +147,11 @@ def train_model(X, y, method="sgd", model=None, lr=0.01, n_epochs=1000,
 
     # Required for Newton's method
     def compute_loss(betas):
-        y_hat = torch.matmul(X, betas)
+        if model.__name__ != 'Friedman':
+            y_hat = torch.matmul(X, betas)
+        else:
+            betas = betas.squeeze()
+            y_hat = betas[0] * torch.sin(torch.pi*X[:,0]*X[:,1]) + (betas[1] * (X[:,2] - betas[2])**2) +(betas[3]*X[:,3]) +(betas[4]*X[:,4])
         return torch.nn.MSELoss()(y_hat, y)
 
     # Train
