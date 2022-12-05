@@ -21,10 +21,32 @@ class LinearRegression(torch.nn.Module):
     def forward(self, x):
         return self.linear(x)
 
+class Friedman(torch.nn.Module):
+    """Friedman regression as a perceptron.
+
+    Parameters
+    ----------
+    m_beta : int
+        Numbers of beta weights.
+    """
+    def __init__(self,x):
+
+        super().__init__()
+
+        self.a = torch.nn.Parameter(torch.randn(()))
+        self.b = torch.nn.Parameter(torch.randn(()))
+        self.c = torch.nn.Parameter(torch.randn(()))
+        self.d = torch.nn.Parameter(torch.randn(()))
+        self.e = torch.nn.Parameter(torch.randn(()))
+
+    def forward(self,x):
+
+        return self.a*torch.sin(torch.pi*x[:,0]*x[:,1]) + self.b*(x[:,2]-self.c)**2 + self.d*(x[:,3]) + self.e* x[:,4]
+
 
 def normal_eq_lr(X, y):
     """Normal Equation (Theoretical)
-    
+
     Parameters
     ----------
     X : 2d tensor
@@ -36,7 +58,7 @@ def normal_eq_lr(X, y):
     -------
     betas : 1d array
         Estimated beta parameters.
-    
+
     Notes
     -----
     Closed Form Solution
@@ -47,7 +69,7 @@ def normal_eq_lr(X, y):
     return np.matmul(A, B)
 
 
-def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000,
+def train_model(X, y, method="sgd", model=None, lr=0.01, n_epochs=1000,
                 seed=None, tol=None, tol_abs=None):
     """Train various gradient descent algorithms.
 
@@ -58,7 +80,9 @@ def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000,
     y : 1d tensor
         Target.
     method : {'sgd', 'lbfgs', 'newton'}
-        Model to train.
+        Optimizer type.
+    model : {LinearRegression, Friedman, None}
+        Initialized model to train. None defaults to LinearRegression.
     lr : float, optional, default: 0.01
         Learning rate (step size).
     n_epochs : int, optional, default: 1000
@@ -85,7 +109,13 @@ def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000,
         torch.manual_seed(seed)
 
     # Initalize model and loss function
-    model = LinearRegression(len(X[0]))
+    if model is None:
+        model = LinearRegression(len(X[0]))
+    elif model.__name__ == 'Friedman':
+        model = model(X)
+    else:
+        model = model(len(X[0]))
+
     betas = model.linear.weight.T.detach()
     loss_func = torch.nn.MSELoss()
     loss_hist = np.zeros(n_epochs)
@@ -130,7 +160,7 @@ def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000,
         elif method == "lbfgs":
             loss = optimizer.step(closure)
         elif method == 'newton':
-            
+
             # Compte loss
             loss = compute_loss(betas)
 
@@ -138,9 +168,9 @@ def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000,
             grad = jacobian(compute_loss, betas)
 
             # Check how many features
-            if X.size()[1] == 1:  
+            if X.size()[1] == 1:
                 # Have to make a 1x1 tensor to be in unity with other cases when m > 1
-                hess = torch.zeros((1, 1))  
+                hess = torch.zeros((1, 1))
                 hess[0] = hessian(compute_loss, betas).inverse().squeeze()
             else:
                 hess = hessian(compute_loss, betas).squeeze().inverse()
@@ -161,11 +191,11 @@ def train_model(X, y, method="sgd", lr=0.01, n_epochs=1000,
         if tol is not None:
             prev_loss = np.nan if i == 0 else loss_hist[i-1]
             abs_pass = abs(prev_loss-loss_hist[i]) <= tol
-            if (tol_abs is None and abs_pass or 
+            if (tol_abs is None and abs_pass or
                 tol_abs is not None and loss_hist[i] < tol_abs and abs_pass):
                 loss_hist[i+1:] = np.nan
                 break
-    
+
     # Time
     end = time.time()
     elapsed = end - start
