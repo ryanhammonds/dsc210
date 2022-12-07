@@ -23,13 +23,3 @@ Installation
 
     $ git clone https://github.com/ryanhammonds/dsc210
     $ pip install -e .
-
-Simulations & Datasets
-----------------------
-
-Add a note.
-
-Results
--------
-
-Add a note / figures.
