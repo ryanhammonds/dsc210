@@ -13,7 +13,9 @@ The following dependencies are required:
 - matplotlib == 3.6.2
 - scikit-learn == 1.1.3
 - torch == 1.13.0
-- tqdm==4.64.1
+- jupyter == 1.0.0
+- tqdm == 4.64.1
+- pandas == 1.5.2
 
 
 Installation
